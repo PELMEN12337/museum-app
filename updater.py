@@ -6,7 +6,7 @@ import tempfile
 from PyQt5.QtWidgets import QMessageBox
 from version import VERSION
 
-GITHUB_REPO = "ваше_имя/название_репозитория"  # заменить
+GITHUB_REPO = "PELMEN12337/museum-app"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 def check_for_updates():
