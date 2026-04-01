@@ -34,5 +34,6 @@ def download_and_install(download_url, parent_widget):
                     f.write(chunk)
         subprocess.Popen([installer_path], shell=True)
         parent_widget.close()
+        sys.exit(0)
     except Exception as e:
         QMessageBox.critical(parent_widget, "Ошибка", f"Не удалось обновить: {e}")
