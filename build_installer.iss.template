@@ -1,0 +1,26 @@
+[Setup]
+AppName=Музейные залы
+AppVersion={#AppVersion}
+DefaultDirName={pf}\MuseumApp
+DefaultGroupName=MuseumApp
+UninstallDisplayIcon={app}\museum_app.exe
+Compression=lzma2
+SolidCompression=yes
+OutputDir=.
+OutputBaseFilename=museum_setup-{#AppVersion}
+;SetupIconFile=app.ico
+
+[Files]
+Source: "dist\museum_app.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "version.py"; DestDir: "{app}"; Flags: ignoreversion
+
+[Icons]
+Name: "{group}\Музейные залы"; Filename: "{app}\museum_app.exe"
+Name: "{group}\Удалить"; Filename: "{uninstallexe}"
+Name: "{commondesktop}\Музейные залы"; Filename: "{app}\museum_app.exe"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "Создать значок на рабочем столе"; GroupDescription: "Дополнительные значки:"; Flags: unchecked
+
+[Run]
+Filename: "{app}\museum_app.exe"; Description: "Запустить приложение"; Flags: postinstall nowait skipifsilent
