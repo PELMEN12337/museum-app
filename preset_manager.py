@@ -4,7 +4,13 @@ import shutil
 import sys
 
 class PresetManager:
-    def __init__(self, app_dir):
+    def __init__(self, app_dir=None):
+        if app_dir is None:
+            if sys.platform == "win32":
+                app_data = os.environ.get("APPDATA", os.path.expanduser("~"))
+                app_dir = os.path.join(app_data, "MuseumApp")
+            else:
+                app_dir = os.path.expanduser("~/.museumapp")
         self.app_dir = app_dir
         self.presets_dir = os.path.join(app_dir, "presets")
         self.user_data_dir = os.path.join(app_dir, "user_data")
@@ -55,19 +61,11 @@ class PresetManager:
         for img_idx, src in enumerate(img_list):
             if src and os.path.exists(src):
                 dst = os.path.join(preset_folder, f"img_{img_idx+1}.png")
-                # Нормализуем пути для сравнения
                 if os.path.normpath(src) == os.path.normpath(dst):
-                    # Исходный и целевой файлы совпадают – пропускаем копирование
                     new_paths.append(src)
-                    print(f"Skipping copy, same file: {src}")
                 else:
-                    try:
-                        shutil.copy2(src, dst)
-                        new_paths.append(dst)
-                        print(f"Copied {src} -> {dst}")
-                    except Exception as e:
-                        print(f"Error copying {src} to {dst}: {e}")
-                        new_paths.append(src)  # оставляем исходный путь
+                    shutil.copy2(src, dst)
+                    new_paths.append(dst)
             else:
                 print(f"Source file not found: {src}")
                 new_paths.append("")
@@ -132,4 +130,4 @@ class PresetManager:
         }
 
         self.add_preset(preset)
-        print(f"Дефолтный пресет «{default_preset_name}» успешно создан.")
+        print(f"Дефолтный пресет «{default_preset_name}» успешно создан в {self.app_dir}")

@@ -138,6 +138,10 @@ class PresetManagerDialog(QDialog):
         if preset:
             editor = PresetEditor(self.preset_manager, self, preset_data=preset, preset_index=idx)
             if editor.exec_():
+                # Если редактируемый пресет является текущим в главном окне, обновляем его
+                if self.parent_window and self.parent_window.current_preset and self.parent_window.current_preset.get("name") == preset.get("name"):
+                    updated_preset = self.preset_manager.get_preset(idx)
+                    self.parent_window.set_current_preset(updated_preset)
                 self.refresh_list()
 
     def delete_preset(self, idx):
@@ -146,10 +150,9 @@ class PresetManagerDialog(QDialog):
         if reply == QMessageBox.Yes:
             preset = self.preset_manager.get_preset(idx)
             self.preset_manager.remove_preset(idx)
-            if preset and self.current_used_preset == preset.get("name"):
-                self.current_used_preset = None
-                if self.parent_window:
-                    self.parent_window.set_current_preset(None)
+            # Если удалили текущий используемый пресет, сбрасываем его в главном окне
+            if preset and self.parent_window and self.parent_window.current_preset and self.parent_window.current_preset.get("name") == preset.get("name"):
+                self.parent_window.set_current_preset(None)
             self.refresh_list()
 
     def use_preset(self, idx):
