@@ -17,7 +17,7 @@ def check_for_updates():
             latest_version = data.get("tag_name", "").lstrip("v")
             if latest_version > VERSION:
                 for asset in data.get("assets", []):
-                    if asset["name"] == "museum_setup.exe":
+                    if asset["name"].startswith("museum_setup"):
                         return True, latest_version, asset["browser_download_url"]
     except Exception as e:
         print(f"Ошибка: {e}")
