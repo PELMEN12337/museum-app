@@ -23,17 +23,26 @@ def check_for_updates():
         print(f"Ошибка: {e}")
     return False, None, None
 
+
 def download_and_install(download_url, parent_widget):
     try:
         temp_dir = tempfile.gettempdir()
         installer_path = os.path.join(temp_dir, "museum_setup_new.exe")
+
+        # Скачивание с проверкой
         with requests.get(download_url, stream=True) as r:
             r.raise_for_status()
             with open(installer_path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
-        subprocess.Popen([installer_path], shell=True)
+
+        # Даём время на завершение старого процесса
         parent_widget.close()
+        import time
+        time.sleep(1)
+
+        # Запускаем установщик с флагом, чтобы он не создавал окно консоли
+        subprocess.Popen([installer_path], shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
         sys.exit(0)
     except Exception as e:
         QMessageBox.critical(parent_widget, "Ошибка", f"Не удалось обновить: {e}")

@@ -224,6 +224,10 @@ class StartScreen(QWidget):
 
         layout.addLayout(bottom_layout)
 
+        from version_label import VersionLabel
+        version_label = VersionLabel(self)
+        layout.addWidget(version_label, alignment=Qt.AlignRight | Qt.AlignBottom)
+
     def on_start(self):
         self.start_clicked.emit()
 
@@ -325,6 +329,10 @@ class HallSelectionScreen(QWidget):
         """)
         back_btn.clicked.connect(self.go_back)
         layout.addWidget(back_btn, alignment=Qt.AlignCenter)
+
+        from version_label import VersionLabel
+        version_label = VersionLabel(self)
+        layout.addWidget(version_label, alignment=Qt.AlignRight | Qt.AlignBottom)
 
         if self.parent and hasattr(self.parent, 'fullscreenChanged'):
             self.parent.fullscreenChanged.connect(self.updateButtonFonts)

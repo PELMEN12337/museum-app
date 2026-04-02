@@ -54,6 +54,10 @@ class BaseHallLevel(QWidget):
         self.hall_btn.clicked.connect(self.go_to_hall_selection)
         self.layout.addWidget(self.hall_btn, alignment=Qt.AlignCenter)
 
+        from version_label import VersionLabel
+        self.version_label = VersionLabel(self)
+        self.layout.addWidget(self.version_label, alignment=Qt.AlignRight | Qt.AlignBottom)
+
         self.update_display()
         self.setup_content()
 
