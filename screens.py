@@ -68,7 +68,8 @@ class MainWindow(QMainWindow):
             if hall_class is None:
                 from halls.base_hall import BaseHallLevel
                 hall_class = BaseHallLevel
-            total_levels = HALLS[hall_name]
+
+            # Определяем количество уровней и данные пресета
             preset_data = None
             if self.current_preset and hall_name in self.current_preset.get("halls", {}):
                 hall_preset = self.current_preset["halls"][hall_name]
@@ -76,6 +77,10 @@ class MainWindow(QMainWindow):
                     "levels": hall_preset["levels"],
                     "correct_answers": hall_preset["correct_answers"]
                 }
+                total_levels = len(preset_data["levels"])  # берём из пресета
+            else:
+                total_levels = HALLS[hall_name]  # стандартное значение
+
             level_screen = hall_class(self, hall_name, level, total_levels, preset_data)
             self.stack.addWidget(level_screen)
             self.level_screens[key] = level_screen
