@@ -179,7 +179,7 @@ class StartScreen(QWidget):
         settings_btn = QPushButton("⚙️ Настройки")
         settings_btn.setMinimumSize(180, 55)
         settings_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        settings_btn.setFont(QFont("Arial", 11))
+        settings_btn.setFont(QFont("Arial", 30))
         settings_btn.setStyleSheet("""
             QPushButton {
                 background-color: #FFF3E0;

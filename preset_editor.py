@@ -2,7 +2,7 @@ import os
 import copy
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
                              QPushButton, QFileDialog, QTabWidget, QMessageBox,
-                             QWidget, QScrollArea, QGridLayout, QApplication, QComboBox)
+                             QWidget, QScrollArea, QGridLayout, QApplication, QComboBox, QSizePolicy)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPixmap
 from constants import ALL_HALLS, HALLS
@@ -14,7 +14,7 @@ class PresetEditor(QDialog):
         self.preset_index = preset_index
         self.setWindowTitle("Редактор пресета" if preset_index is not None else "Создание пресета")
         self.setMinimumSize(900, 700)
-        self.resize(1000, 800)
+        self.resize(1230, 800)
         self.setStyleSheet("""
             QDialog {
                 background-color: #F5F5F5;
@@ -27,9 +27,10 @@ class PresetEditor(QDialog):
             QTabBar::tab {
                 background-color: #E0E0E0;
                 border-radius: 6px;
-                padding: 8px 16px;
+                padding: 8px 4px;
                 margin: 2px;
                 font-weight: bold;
+                padding: 6px;
             }
             QTabBar::tab:selected {
                 background-color: #FFB74D;
@@ -90,6 +91,14 @@ class PresetEditor(QDialog):
         main_layout.addLayout(name_layout)
 
         self.main_tabs = QTabWidget()
+        self.main_tabs.setStyleSheet("""
+            QTabBar::tab {
+                font-size: 11px;
+                padding: 6px 8px;
+                margin: 2px;
+                min-width: 200px;
+            }
+        """)
         self.main_tabs.setTabPosition(QTabWidget.North)
         main_layout.addWidget(self.main_tabs, 1)
 
