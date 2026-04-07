@@ -9,6 +9,7 @@ from version import VERSION
 GITHUB_REPO = "PELMEN12337/museum-app"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
+
 def check_for_updates():
     try:
         response = requests.get(GITHUB_API_URL, timeout=5)
@@ -26,23 +27,24 @@ def check_for_updates():
 
 def download_and_install(download_url, parent_widget):
     try:
-        temp_dir = tempfile.gettempdir()
-        installer_path = os.path.join(temp_dir, "museum_setup_new.exe")
+        # Сохраняем в папку Downloads (или на рабочий стол, если Downloads недоступна)
+        downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        if not os.path.exists(downloads_dir):
+            downloads_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+        if not os.path.exists(downloads_dir):
+            downloads_dir = tempfile.gettempdir()
+        installer_path = os.path.join(downloads_dir, "museum_setup.exe")
 
-        # Скачивание с проверкой
+        # Скачиваем
         with requests.get(download_url, stream=True) as r:
             r.raise_for_status()
             with open(installer_path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-        # Даём время на завершение старого процесса
+        # Запускаем установщик с обычными правами, но не из временной папки
+        subprocess.Popen([installer_path], shell=True)
         parent_widget.close()
-        import time
-        time.sleep(1)
-
-        # Запускаем установщик с флагом, чтобы он не создавал окно консоли
-        subprocess.Popen([installer_path], shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
         sys.exit(0)
     except Exception as e:
         QMessageBox.critical(parent_widget, "Ошибка", f"Не удалось обновить: {e}")
