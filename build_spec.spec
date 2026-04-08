@@ -4,10 +4,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('version.py', '.'),
-        ('default_preset_images', 'default_preset_images'),   # важно для дефолтного пресета
-    ],
+    datas=[('version.py', '.'), ('default_preset_images', 'default_preset_images')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -29,7 +26,7 @@ exe = EXE(
     strip=False,
     upx=True,
     upx_exclude=[],
-    runtime_tmpdir='C:\\ProgramData\\MuseumApp\\temp',  # <-- добавить
+    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,

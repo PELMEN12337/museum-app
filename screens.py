@@ -70,6 +70,8 @@ class MainWindow(QMainWindow):
         self.preset_changed.emit()
 
     def show_hall_selection(self):
+        # Очищаем кэш экранов уровней, чтобы они пересоздались с новым состоянием
+        self.level_screens.clear()
         self.stack.setCurrentWidget(self.hall_screen)
 
     def show_level(self, hall_name, level):
@@ -96,6 +98,7 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.level_screens[key])
 
     def show_hall_selection_from_level(self):
+        self.level_screens.clear()
         self.stack.setCurrentWidget(self.hall_screen)
 
     def navigate_to(self, hall_name, level):

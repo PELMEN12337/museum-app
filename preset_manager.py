@@ -54,6 +54,7 @@ class PresetManager:
     def get_preset(self, index):
         return self.presets[index] if 0 <= index < len(self.presets) else None
 
+    # ---------- Обычные залы (список изображений) ----------
     def copy_images_to_preset(self, preset_name, hall_name, level_idx, img_list):
         preset_folder = os.path.join(self.user_data_dir, preset_name, hall_name, f"level_{level_idx}")
         os.makedirs(preset_folder, exist_ok=True)
@@ -71,6 +72,42 @@ class PresetManager:
                 new_paths.append("")
         return new_paths
 
+    # ---------- Зал мастера (основная картинка + 8 цветов) ----------
+    def copy_master_images_to_preset(self, preset_name, hall_name, level_idx, level_dict):
+        """Копирует основную картинку и цвета для уровня зала мастера."""
+        level_folder = os.path.join(self.user_data_dir, preset_name, hall_name, f"level_{level_idx}")
+        os.makedirs(level_folder, exist_ok=True)
+        new_level = {}
+
+        # Основная картинка
+        main_src = level_dict.get("main_image", "")
+        if main_src and os.path.exists(main_src):
+            dst = os.path.join(level_folder, "main.png")
+            if os.path.normpath(main_src) == os.path.normpath(dst):
+                new_level["main_image"] = main_src
+            else:
+                shutil.copy2(main_src, dst)
+                new_level["main_image"] = dst
+        else:
+            new_level["main_image"] = ""
+
+        # Цвета (8 штук)
+        new_colors = []
+        for i, src in enumerate(level_dict.get("color_images", [])):
+            if src and os.path.exists(src):
+                dst = os.path.join(level_folder, f"color_{i+1}.png")
+                if os.path.normpath(src) == os.path.normpath(dst):
+                    new_colors.append(src)
+                else:
+                    shutil.copy2(src, dst)
+                    new_colors.append(dst)
+            else:
+                new_colors.append("")
+        new_level["color_images"] = new_colors
+        new_level["correct_indices"] = level_dict.get("correct_indices", [])
+        return new_level
+
+    # ---------- Создание стандартного пресета ----------
     def create_default_preset(self):
         from constants import HALLS, ALL_HALLS
 
@@ -89,26 +126,45 @@ class PresetManager:
             levels = HALLS[hall_name]
             level_paths = []
             correct_answers = []
-            for lvl in range(1, levels + 1):
-                level_folder = os.path.join(hall_path, f"level_{lvl}")
-                if not os.path.exists(level_folder):
-                    break
-                images = sorted([os.path.join(level_folder, f) for f in os.listdir(level_folder)
-                                 if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
-                if not images:
-                    break
-                level_paths.append(images)
-                if hall_name == "Зал внимания (Найди лишний)":
-                    if lvl == 1:
-                        correct_answers.append(0)
-                    elif lvl == 2:
-                        correct_answers.append(1)
-                    elif lvl == 3:
-                        correct_answers.append(1)
+
+            if hall_name == "Зал мастера (Подбери цвета по картинке)":
+                # Особый формат: для каждого уровня – словарь
+                for lvl in range(1, levels + 1):
+                    level_folder = os.path.join(hall_path, f"level_{lvl}")
+                    if not os.path.exists(level_folder):
+                        break
+                    main_img = os.path.join(level_folder, "main.png")
+                    color_imgs = [os.path.join(level_folder, f"color_{i}.png") for i in range(1, 9)]
+                    level_dict = {
+                        "main_image": main_img,
+                        "color_images": color_imgs,
+                        "correct_indices": [0, 1, 2, 3]  # пример: первые 4 цвета правильные
+                    }
+                    level_paths.append(level_dict)
+                    correct_answers.append(0)  # не используется
+            else:
+                # Обычные залы: список путей к изображениям
+                for lvl in range(1, levels + 1):
+                    level_folder = os.path.join(hall_path, f"level_{lvl}")
+                    if not os.path.exists(level_folder):
+                        break
+                    images = sorted([os.path.join(level_folder, f) for f in os.listdir(level_folder)
+                                     if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
+                    if not images:
+                        break
+                    level_paths.append(images)
+                    if hall_name == "Зал внимания (Найди лишний)":
+                        if lvl == 1:
+                            correct_answers.append(0)
+                        elif lvl == 2:
+                            correct_answers.append(1)
+                        elif lvl == 3:
+                            correct_answers.append(1)
+                        else:
+                            correct_answers.append(len(images)-1)
                     else:
                         correct_answers.append(len(images)-1)
-                else:
-                    correct_answers.append(len(images)-1)
+
             if len(level_paths) == levels:
                 halls_data[hall_name] = {
                     "levels": level_paths,
@@ -119,10 +175,16 @@ class PresetManager:
             print("Не удалось загрузить дефолтные изображения для создания пресета.")
             return
 
+        # Копируем изображения в папку user_data
         for hall_name, hall_data in halls_data.items():
-            for level_idx, img_list in enumerate(hall_data["levels"]):
-                new_paths = self.copy_images_to_preset(default_preset_name, hall_name, level_idx+1, img_list)
-                hall_data["levels"][level_idx] = new_paths
+            if hall_name == "Зал мастера (Подбери цвета по картинке)":
+                for level_idx, level_dict in enumerate(hall_data["levels"]):
+                    new_level = self.copy_master_images_to_preset(default_preset_name, hall_name, level_idx+1, level_dict)
+                    hall_data["levels"][level_idx] = new_level
+            else:
+                for level_idx, img_list in enumerate(hall_data["levels"]):
+                    new_paths = self.copy_images_to_preset(default_preset_name, hall_name, level_idx+1, img_list)
+                    hall_data["levels"][level_idx] = new_paths
 
         preset = {
             "name": default_preset_name,
