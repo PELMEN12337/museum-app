@@ -8,7 +8,6 @@ from constants import get_next_hall
 
 class AttentionHallLevel(BaseHallLevel):
     def __init__(self, parent, hall_name, level, total_levels, preset_data=None):
-        # Инициализация атрибутов
         self.labels = []
         self.original_pixmaps = []
         self.grid = None
@@ -22,6 +21,11 @@ class AttentionHallLevel(BaseHallLevel):
     def setup_content(self):
         if self.preset_data:
             level_index = self.level - 1
+            if level_index >= len(self.preset_data["levels"]):
+                label = QLabel(f"Ошибка: данные для уровня {self.level} отсутствуют в пресете")
+                label.setAlignment(Qt.AlignCenter)
+                self.content_layout.addWidget(label)
+                return
             original_paths = self.preset_data["levels"][level_index]
             self.correct_answer = self.preset_data["correct_answers"][level_index]
 
@@ -36,8 +40,8 @@ class AttentionHallLevel(BaseHallLevel):
 
             # Создаём сетку
             self.grid = QGridLayout()
-            self.grid.setHorizontalSpacing(20)   # отступы по горизонтали
-            self.grid.setVerticalSpacing(30)     # увеличенные отступы по вертикали
+            self.grid.setHorizontalSpacing(20)
+            self.grid.setVerticalSpacing(30)
             self.content_layout.addLayout(self.grid)
 
             # Загружаем pixmap'ы и создаём метки
@@ -58,10 +62,8 @@ class AttentionHallLevel(BaseHallLevel):
                 label.mousePressEvent = lambda event, pos=idx: self.check_answer_by_position(pos)
                 self.labels.append(label)
 
-            # Перестраиваем сетку и масштабируем
             self.update_grid_layout()
 
-            # Кнопка перехода к следующему залу (только для последнего уровня)
             if self.level == self.total_levels:
                 self.next_hall_btn = QPushButton("➡️ Перейти к следующему залу")
                 self.next_hall_btn.clicked.connect(self.go_to_next_hall)
@@ -73,11 +75,9 @@ class AttentionHallLevel(BaseHallLevel):
             self.content_layout.addWidget(label)
 
     def update_grid_layout(self):
-        """Определяет количество колонок и перестраивает сетку."""
         if not self.labels:
             return
         count = len(self.labels)
-        # Определяем количество колонок
         if count <= 2:
             self.cols = 2
         elif count <= 4:
@@ -87,13 +87,11 @@ class AttentionHallLevel(BaseHallLevel):
         else:
             self.cols = 4
 
-        # Очищаем сетку
         while self.grid.count():
             item = self.grid.takeAt(0)
             if item.widget():
                 item.widget().setParent(None)
 
-        # Добавляем метки в сетку
         for idx, label in enumerate(self.labels):
             row = idx // self.cols
             col = idx % self.cols
@@ -102,7 +100,6 @@ class AttentionHallLevel(BaseHallLevel):
         self.update_image_sizes()
 
     def update_image_sizes(self):
-        """Вычисляет размер ячейки и масштабирует изображения."""
         if not self.labels or not self.content_widget:
             return
         available_width = self.content_widget.width() - 20
@@ -111,7 +108,6 @@ class AttentionHallLevel(BaseHallLevel):
         h_spacing = self.grid.horizontalSpacing()
         cell_width = (available_width - h_spacing * (self.cols - 1)) // self.cols
 
-        # Максимальный размер ячейки в зависимости от количества изображений
         img_count = len(self.labels)
         if img_count <= 3:
             max_cell = 500

@@ -13,7 +13,7 @@ if __name__ == "__main__":
     window = MainWindow()
     window.apply_theme(last_theme)
     window.start_screen.theme_changed.connect(lambda t: settings.setValue("theme", t))
-    window.show()
+    window.showMaximized()   # вместо window.show()
 
     has_update, latest_version, url = check_for_updates()
     if has_update and url:

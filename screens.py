@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         if key not in self.level_screens:
             hall_class = HALL_CLASSES.get(hall_name)
             if hall_class is None:
-                from halls.base_hall import BaseHallLevel
+                from dialogs import BaseHallLevel
                 hall_class = BaseHallLevel
 
             total_levels = HALLS[hall_name]
