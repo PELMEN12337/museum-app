@@ -3,8 +3,8 @@ import copy
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
                              QPushButton, QFileDialog, QTabWidget, QMessageBox,
                              QWidget, QScrollArea, QGridLayout, QApplication, QComboBox,
-                             QCheckBox, QMenu, QAction)
-from PyQt5.QtCore import Qt
+                             QCheckBox, QMenu, QAction, QGroupBox)
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPixmap, QFont, QCursor
 from constants import ALL_HALLS, HALLS
 
@@ -501,6 +501,241 @@ class MasterLevelEditorDialog(QDialog):
             }
         super().accept()
 
+class RestorerLevelEditorDialog(QDialog):
+    def __init__(self, hall_name, levels_data, parent=None):
+        super().__init__(parent)
+        self.hall_name = hall_name
+        self.levels_data = levels_data
+        self.setWindowTitle(f"Редактор уровней – {hall_name}")
+        self.setMinimumSize(700, 800)
+        self.resize(900, 950)
+        self.setStyleSheet("""
+            QDialog { background-color: #F5F5F5; }
+            QTabWidget::pane { border: 1px solid #DDD; border-radius: 8px; background-color: white; }
+            QTabBar::tab { background-color: #E0E0E0; border-radius: 6px; padding: 6px 12px; margin: 2px; font-weight: bold; }
+            QTabBar::tab:selected { background-color: #FFB74D; color: white; }
+            QPushButton { background-color: #FFB74D; border: none; border-radius: 8px; padding: 8px 16px; font-weight: bold; }
+            QPushButton:hover { background-color: #FFA726; }
+            QScrollArea { border: none; background-color: transparent; }
+            QLabel { font-size: 12px; }
+        """)
+
+        layout = QVBoxLayout(self)
+        self.level_tabs = QTabWidget()
+        layout.addWidget(self.level_tabs)
+
+        self.tab_data = []
+        for i, level_info in enumerate(self.levels_data):
+            tab = QWidget()
+            tab_layout = QVBoxLayout(tab)
+            tab_layout.setSpacing(15)
+
+            # Целая картинка
+            complete_group = QGroupBox("Целая картинка (без дефекта)")
+            complete_layout = QVBoxLayout(complete_group)
+            complete_btn = QPushButton("📂 Загрузить целую картинку")
+            complete_btn.clicked.connect(lambda checked, idx=i: self.load_complete_image(idx))
+            complete_layout.addWidget(complete_btn)
+            complete_preview = QLabel()
+            complete_preview.setFixedSize(200, 200)
+            complete_preview.setAlignment(Qt.AlignCenter)
+            complete_preview.setStyleSheet("border: 1px solid gray; background-color: white;")
+            complete_preview.setContextMenuPolicy(Qt.CustomContextMenu)
+            complete_preview.customContextMenuRequested.connect(lambda pos, idx=i: self.delete_image(idx, "complete"))
+            complete_layout.addWidget(complete_preview, alignment=Qt.AlignCenter)
+            tab_layout.addWidget(complete_group)
+
+            # Картинка с дыркой
+            hole_group = QGroupBox("Картинка с дыркой")
+            hole_layout = QVBoxLayout(hole_group)
+            hole_btn = QPushButton("📂 Загрузить картинку с дыркой")
+            hole_btn.clicked.connect(lambda checked, idx=i: self.load_hole_image(idx))
+            hole_layout.addWidget(hole_btn)
+            hole_preview = QLabel()
+            hole_preview.setFixedSize(200, 200)
+            hole_preview.setAlignment(Qt.AlignCenter)
+            hole_preview.setStyleSheet("border: 1px solid gray; background-color: white;")
+            hole_preview.setContextMenuPolicy(Qt.CustomContextMenu)
+            hole_preview.customContextMenuRequested.connect(lambda pos, idx=i: self.delete_image(idx, "hole"))
+            hole_layout.addWidget(hole_preview, alignment=Qt.AlignCenter)
+            tab_layout.addWidget(hole_group)
+
+            # Заплатки (3 штуки)
+            patches_group = QGroupBox("Заплатки (3 изображения) – клик ЛКМ – выбрать правильную, ПКМ – удалить")
+            patches_layout = QVBoxLayout(patches_group)
+            patches_btn = QPushButton("📂 Загрузить заплатки (дополнят пустые места)")
+            patches_btn.clicked.connect(lambda checked, idx=i: self.load_patches_bulk(idx))
+            patches_layout.addWidget(patches_btn)
+
+            patches_grid = QGridLayout()
+            patches_grid.setSpacing(20)
+            patch_previews = []
+            for j in range(3):
+                container = QWidget()
+                container_layout = QVBoxLayout(container)
+                container_layout.setContentsMargins(0, 0, 0, 0)
+                label = QLabel()
+                label.setFixedSize(120, 120)
+                label.setAlignment(Qt.AlignCenter)
+                label.setStyleSheet("border: 2px solid gray; border-radius: 5px; background-color: white;")
+                label.setContextMenuPolicy(Qt.CustomContextMenu)
+                label.customContextMenuRequested.connect(lambda pos, idx=i, pos_idx=j: self.delete_patch(idx, pos_idx))
+                label.mousePressEvent = lambda event, idx=i, pos=j: self.set_correct_patch(idx, pos) if event.button() == Qt.LeftButton else None
+                name_label = QLabel(f"Заплатка {j+1}")
+                name_label.setAlignment(Qt.AlignCenter)
+                container_layout.addWidget(label)
+                container_layout.addWidget(name_label)
+                patches_grid.addWidget(container, 0, j)
+                patch_previews.append(label)
+            patches_layout.addLayout(patches_grid)
+            tab_layout.addWidget(patches_group)
+
+            # Отображение текущей правильной заплатки
+            correct_info = QLabel("Правильная заплатка: не выбрана")
+            correct_info.setStyleSheet("font-weight: bold; color: green;")
+            tab_layout.addWidget(correct_info)
+
+            self.level_tabs.addTab(tab, f"Уровень {i+1}")
+            self.tab_data.append({
+                'level_idx': i,
+                'complete_preview': complete_preview,
+                'hole_preview': hole_preview,
+                'patch_previews': patch_previews,
+                'correct_info': correct_info,
+                'complete_path': level_info.get("complete_image", ""),
+                'hole_path': level_info.get("hole_image", ""),
+                'patches_paths': level_info.get("patches", [""]*3),
+                'correct_patch_idx': level_info.get("correct_patch_idx", None)
+            })
+            self.update_tab_display(i)
+
+        btn_layout = QHBoxLayout()
+        self.ok_btn = QPushButton("💾 Сохранить уровни")
+        self.cancel_btn = QPushButton("❌ Отмена")
+        self.ok_btn.clicked.connect(self.accept)
+        self.cancel_btn.clicked.connect(self.reject)
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.ok_btn)
+        btn_layout.addWidget(self.cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def load_complete_image(self, level_idx):
+        file, _ = QFileDialog.getOpenFileName(self, "Выберите целую картинку", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        if file:
+            self.tab_data[level_idx]['complete_path'] = file
+            self.update_tab_display(level_idx)
+
+    def load_hole_image(self, level_idx):
+        file, _ = QFileDialog.getOpenFileName(self, "Выберите картинку с дыркой", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        if file:
+            self.tab_data[level_idx]['hole_path'] = file
+            self.update_tab_display(level_idx)
+
+    def load_patches_bulk(self, level_idx):
+        files, _ = QFileDialog.getOpenFileNames(self, "Выберите заплатки (дополнят пустые места)", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        if not files:
+            return
+        paths = self.tab_data[level_idx]['patches_paths']
+        # Находим пустые слоты
+        empty_slots = [i for i, p in enumerate(paths) if not p or not os.path.exists(p)]
+        if not empty_slots:
+            QMessageBox.information(self, "Информация", "Все 3 заплатки уже загружены. Удалите ненужные (ПКМ) перед загрузкой новых.")
+            return
+        for i, file in enumerate(files):
+            if i >= len(empty_slots):
+                QMessageBox.information(self, "Информация", f"Свободно только {len(empty_slots)} мест, лишние файлы не добавлены.")
+                break
+            paths[empty_slots[i]] = file
+        self.tab_data[level_idx]['patches_paths'] = paths
+        self.update_tab_display(level_idx)
+
+    def delete_image(self, level_idx, img_type):
+        if img_type == "complete":
+            self.tab_data[level_idx]['complete_path'] = ""
+        elif img_type == "hole":
+            self.tab_data[level_idx]['hole_path'] = ""
+        self.update_tab_display(level_idx)
+
+    def delete_patch(self, level_idx, patch_idx):
+        paths = self.tab_data[level_idx]['patches_paths']
+        if patch_idx < len(paths):
+            paths[patch_idx] = ""
+            self.tab_data[level_idx]['patches_paths'] = paths
+            if self.tab_data[level_idx]['correct_patch_idx'] == patch_idx:
+                self.tab_data[level_idx]['correct_patch_idx'] = None
+            self.update_tab_display(level_idx)
+
+    def set_correct_patch(self, level_idx, patch_idx):
+        self.tab_data[level_idx]['correct_patch_idx'] = patch_idx
+        self.update_tab_display(level_idx)
+
+    def update_tab_display(self, level_idx):
+        data = self.tab_data[level_idx]
+        # Целая картинка
+        if data['complete_path'] and os.path.exists(data['complete_path']):
+            pixmap = QPixmap(data['complete_path'])
+            if not pixmap.isNull():
+                scaled = pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                data['complete_preview'].setPixmap(scaled)
+            else:
+                data['complete_preview'].setText("Ошибка")
+        else:
+            data['complete_preview'].setText("Нет")
+        # Дырка
+        if data['hole_path'] and os.path.exists(data['hole_path']):
+            pixmap = QPixmap(data['hole_path'])
+            if not pixmap.isNull():
+                scaled = pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                data['hole_preview'].setPixmap(scaled)
+            else:
+                data['hole_preview'].setText("Ошибка")
+        else:
+            data['hole_preview'].setText("Нет")
+        # Заплатки
+        for j, preview in enumerate(data['patch_previews']):
+            path = data['patches_paths'][j] if j < len(data['patches_paths']) else ""
+            if path and os.path.exists(path):
+                pixmap = QPixmap(path)
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    preview.setPixmap(scaled)
+                    preview.setToolTip(os.path.basename(path))
+                else:
+                    preview.setText("Ошибка")
+            else:
+                preview.setText("Нет")
+            # Выделяем правильную заплатку
+            if data['correct_patch_idx'] == j:
+                preview.setStyleSheet("border: 3px solid green; border-radius: 5px; background-color: #E8F5E9;")
+            else:
+                preview.setStyleSheet("border: 2px solid gray; border-radius: 5px; background-color: white;")
+        # Информация о правильной заплатке
+        if data['correct_patch_idx'] is not None:
+            data['correct_info'].setText(f"✅ Правильная заплатка: {data['correct_patch_idx']+1}")
+        else:
+            data['correct_info'].setText("❌ Правильная заплатка не выбрана (кликните ЛКМ по нужной)")
+
+    def accept(self):
+        for i, data in enumerate(self.tab_data):
+            if data['correct_patch_idx'] is None:
+                QMessageBox.warning(self, "Ошибка", f"Для уровня {i+1} не выбрана правильная заплатка.")
+                return
+            if not data['complete_path'] or not os.path.exists(data['complete_path']):
+                QMessageBox.warning(self, "Ошибка", f"Для уровня {i+1} не загружена целая картинка.")
+                return
+            if not data['hole_path'] or not os.path.exists(data['hole_path']):
+                QMessageBox.warning(self, "Ошибка", f"Для уровня {i+1} не загружена картинка с дыркой.")
+                return
+            if any(not p or not os.path.exists(p) for p in data['patches_paths']):
+                QMessageBox.warning(self, "Ошибка", f"Для уровня {i+1} не загружены все 3 заплатки.")
+                return
+            self.levels_data[i] = {
+                "complete_image": data['complete_path'],
+                "hole_image": data['hole_path'],
+                "patches": data['patches_paths'],
+                "correct_patch_idx": data['correct_patch_idx']
+            }
+        super().accept()
 
 # ----------------------------------------------------------------------
 # Главный диалог PresetEditor
@@ -555,39 +790,34 @@ class PresetEditor(QDialog):
         """)
         main_layout.addWidget(self.main_tabs, 1)
 
-        self.tab_data = {}  # hall_name -> {"level_data": ..., "correct_answers": ..., "level_combo": ..., "preview_grid": ...}
+        self.tab_data = {}
 
         for hall_name in ALL_HALLS:
-            levels = HALLS[hall_name]  # или другое начальное количество
             tab = QWidget()
             tab_layout = QVBoxLayout(tab)
 
-            # Кнопка настройки уровней
             setup_btn = QPushButton(f"Настроить уровни для зала «{hall_name}»")
             setup_btn.clicked.connect(lambda checked, name=hall_name: self.setup_hall_levels(name))
             tab_layout.addWidget(setup_btn)
 
-            # Комбобокс выбора уровня для предпросмотра
             level_combo = QComboBox()
             tab_layout.addWidget(level_combo)
 
-            # Скролл-область для предпросмотра
             preview_scroll = QScrollArea()
             preview_scroll.setWidgetResizable(True)
             preview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             preview_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             tab_layout.addWidget(preview_scroll)
 
-            # Сохраняем данные зала
             self.tab_data[hall_name] = {
                 "level_data": None,
                 "correct_answers": None,
                 "level_combo": level_combo,
-                "preview_scroll": preview_scroll,  # <--- добавлено
+                "preview_scroll": preview_scroll,
                 "preview_widget": None,
             }
 
-            # Функция обновления предпросмотра
+            # Функция обновления предпросмотра (упрощённо, но с адаптацией)
             def make_update_preview(hall):
                 def update_preview(level_index):
                     new_widget = QWidget()
@@ -597,36 +827,37 @@ class PresetEditor(QDialog):
 
                     level_data = self.tab_data[hall]["level_data"]
                     if level_data and level_index < len(level_data):
-                        # Получаем ширину области предпросмотра
+                        # Принудительно обновляем геометрию скролл-области
                         scroll = self.tab_data[hall]["preview_scroll"]
-                        available_width = scroll.viewport().width() - 20
+                        scroll.updateGeometry()
+                        QApplication.processEvents()
+                        available_width = scroll.width() - 20
                         if available_width < 100:
-                            available_width = 400  # запасное значение
+                            parent_w = scroll.parentWidget().width() if scroll.parentWidget() else 0
+                            if parent_w > 100:
+                                available_width = parent_w - 20
+                            else:
+                                available_width = 400
 
                         if hall == "Зал мастера (Подбери цвета по картинке)":
                             level_dict = level_data[level_index]
                             new_layout.addSpacing(10)
-                            # Фиксированная высота основной картинки (подберите под свой интерфейс)
                             fixed_height = 230
                             main_path = level_dict.get("main_image", "")
                             if main_path and os.path.exists(main_path):
                                 main_label = QLabel()
                                 pixmap = QPixmap(main_path)
                                 if not pixmap.isNull():
-                                    # Масштабируем по высоте
                                     scaled = pixmap.scaledToHeight(fixed_height, Qt.SmoothTransformation)
-                                    # Ограничиваем ширину, чтобы не вылезала за половину окна
                                     max_width = available_width // 2
                                     if scaled.width() > max_width:
                                         scaled = pixmap.scaledToWidth(max_width, Qt.SmoothTransformation)
                                     main_label.setPixmap(scaled)
                                     main_label.setFixedSize(scaled.width(), scaled.height())
                                     main_label.setAlignment(Qt.AlignCenter)
-                                    main_label.setStyleSheet(
-                                        "border: 2px solid #FFB74D; border-radius: 5px; background: white;")
+                                    main_label.setStyleSheet("border: 2px solid #FFB74D; border-radius: 5px; background: white;")
                                     new_layout.addWidget(main_label, alignment=Qt.AlignCenter)
                                     new_layout.addSpacing(15)
-                            # Цвета: размер 60–80, 4 колонки, обрезаем до квадрата
                             color_paths = level_dict.get("color_images", [])
                             if color_paths:
                                 colors_layout = QGridLayout()
@@ -639,25 +870,59 @@ class PresetEditor(QDialog):
                                         label = QLabel()
                                         pixmap = QPixmap(img_path)
                                         if not pixmap.isNull():
-                                            # Обрезаем до квадрата
+                                            # обрезаем до квадрата
                                             w = pixmap.width()
                                             h = pixmap.height()
                                             side = min(w, h)
                                             x = (w - side) // 2
                                             y = (h - side) // 2
                                             square = pixmap.copy(x, y, side, side)
-                                            scaled = square.scaled(cell_width, cell_width, Qt.KeepAspectRatio,
-                                                                   Qt.SmoothTransformation)
+                                            scaled = square.scaled(cell_width, cell_width, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                                             label.setPixmap(scaled)
                                             label.setFixedSize(cell_width, cell_width)
                                             label.setAlignment(Qt.AlignCenter)
-                                            label.setStyleSheet(
-                                                "border: 1px solid gray; border-radius: 5px; background: white;")
+                                            label.setStyleSheet("border: 1px solid gray; border-radius: 5px; background: white;")
                                             colors_layout.addWidget(label, idx // 4, idx % 4)
                                 new_layout.addLayout(colors_layout)
                                 new_layout.addStretch()
+                        elif hall == "Зал реставратора (Заплатки)":
+                            level_dict = level_data[level_index]
+                            new_layout.addSpacing(10)
+                            hole_path = level_dict.get("hole_image", "")
+                            if hole_path and os.path.exists(hole_path):
+                                hole_label = QLabel()
+                                pixmap = QPixmap(hole_path)
+                                if not pixmap.isNull():
+                                    # Ограничение по высоте (максимум 300), ширина пропорциональна
+                                    max_height = 300
+                                    scaled = pixmap.scaledToHeight(max_height, Qt.SmoothTransformation)
+                                    hole_label.setPixmap(scaled)
+                                    hole_label.setFixedSize(scaled.width(), scaled.height())
+                                    hole_label.setAlignment(Qt.AlignCenter)
+                                    hole_label.setStyleSheet("border: 2px solid #FFB74D; border-radius: 5px; background: white;")
+                                    new_layout.addWidget(hole_label, alignment=Qt.AlignCenter)
+                                    new_layout.addSpacing(20)
+                            patches = level_dict.get("patches", [])
+                            if patches and any(p for p in patches):
+                                patches_layout = QHBoxLayout()
+                                patches_layout.setSpacing(20)
+                                for idx, patch_path in enumerate(patches):
+                                    if patch_path and os.path.exists(patch_path):
+                                        label = QLabel()
+                                        pixmap = QPixmap(patch_path)
+                                        if not pixmap.isNull():
+                                            # Заплатки остаются квадратными, но можно тоже по высоте
+                                            cell_size = min(available_width // 5, 120)
+                                            scaled = pixmap.scaled(cell_size, cell_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                                            label.setPixmap(scaled)
+                                            label.setFixedSize(cell_size, cell_size)
+                                            label.setAlignment(Qt.AlignCenter)
+                                            label.setStyleSheet("border: 1px solid gray; border-radius: 5px; background: white;")
+                                            patches_layout.addWidget(label)
+                                new_layout.addLayout(patches_layout)
+                                new_layout.addStretch()
                         else:
-                            # Обычные залы: 3 колонки, размер ячейки до 400, но подстраивается под ширину
+                            # Обычные залы
                             img_list = level_data[level_index]
                             if img_list:
                                 images_layout = QGridLayout()
@@ -670,13 +935,11 @@ class PresetEditor(QDialog):
                                         label = QLabel()
                                         pixmap = QPixmap(img_path)
                                         if not pixmap.isNull():
-                                            scaled = pixmap.scaled(cell_width, cell_width, Qt.KeepAspectRatio,
-                                                                   Qt.SmoothTransformation)
+                                            scaled = pixmap.scaled(cell_width, cell_width, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                                             label.setPixmap(scaled)
                                             label.setFixedSize(cell_width, cell_width)
                                             label.setAlignment(Qt.AlignCenter)
-                                            label.setStyleSheet(
-                                                "border: 1px solid gray; border-radius: 5px; background: white;")
+                                            label.setStyleSheet("border: 1px solid gray; border-radius: 5px; background: white;")
                                             images_layout.addWidget(label, idx // 3, idx % 3)
                                 new_layout.addLayout(images_layout)
                     else:
@@ -684,7 +947,6 @@ class PresetEditor(QDialog):
                         label.setAlignment(Qt.AlignCenter)
                         new_layout.addWidget(label)
 
-                    # Заменяем старый виджет
                     scroll = self.tab_data[hall]["preview_scroll"]
                     old = self.tab_data[hall].get("preview_widget")
                     if old:
@@ -717,36 +979,41 @@ class PresetEditor(QDialog):
         btn_layout.addWidget(self.cancel_btn)
         btn_layout.addStretch()
         main_layout.addLayout(btn_layout)
+        QTimer.singleShot(100, self.update_all_previews)
 
     def _update_preview_combo(self, hall_name):
         data = self.tab_data[hall_name]
         combo = data["level_combo"]
         combo.clear()
         if data["level_data"] is not None:
-            levels_count = len(data["level_data"])
-            for i in range(levels_count):
-                combo.addItem(f"Уровень {i + 1}")
+            for i in range(len(data["level_data"])):
+                combo.addItem(f"Уровень {i+1}")
             combo.setCurrentIndex(0)
         else:
-            # Если данных нет, показываем заглушку
             combo.addItem("Нет уровней")
 
     def setup_hall_levels(self, hall_name):
         data = self.tab_data[hall_name]
-        # Для зала мастера используем специальный редактор
         if hall_name == "Зал мастера (Подбери цвета по картинке)":
             if data["level_data"] is None:
-                # Инициализируем список уровней с пустыми данными
                 data["level_data"] = [{"main_image": "", "color_images": [""]*8, "correct_indices": []}]
-                data["correct_answers"] = [0]  # не используется
+                data["correct_answers"] = [0]
             level_data_copy = copy.deepcopy(data["level_data"])
             editor = MasterLevelEditorDialog(hall_name, level_data_copy, self)
             if editor.exec_():
                 data["level_data"] = level_data_copy
-                # Для зала мастера correct_answers не используется
+                self._update_preview_combo(hall_name)
+        elif hall_name == "Зал реставратора (Заплатки)":
+            if data["level_data"] is None:
+                data["level_data"] = [{"complete_image": "", "hole_image": "", "patches": [""]*3, "correct_patch_idx": 0}]
+                data["correct_answers"] = [0]
+            level_data_copy = copy.deepcopy(data["level_data"])
+            editor = RestorerLevelEditorDialog(hall_name, level_data_copy, self)
+            if editor.exec_():
+                data["level_data"] = level_data_copy
                 self._update_preview_combo(hall_name)
         else:
-            # Обычный зал (внимание, знакомство, реставратор, хранитель)
+            # Обычные залы
             if data["level_data"] is None:
                 default_levels = 1
                 data["level_data"] = [[] for _ in range(default_levels)]
@@ -759,7 +1026,6 @@ class PresetEditor(QDialog):
                 data["correct_answers"] = correct_answers_copy
                 self._update_preview_combo(hall_name)
 
-
     def accept(self):
         if not self.preset_name.text().strip():
             QMessageBox.warning(self, "Ошибка", "Введите название пресета.")
@@ -769,28 +1035,32 @@ class PresetEditor(QDialog):
         for hall_name, data in self.tab_data.items():
             if data["level_data"] is not None:
                 any_configured = True
-                # Проверяем только залы, которые были настроены
                 if hall_name == "Зал мастера (Подбери цвета по картинке)":
-                    # Для зала мастера проверяем наличие основной картинки и 8 цветов
                     for i, level_dict in enumerate(data["level_data"]):
                         if not level_dict.get("main_image"):
-                            QMessageBox.warning(self, "Ошибка",
-                                                f"Для зала «{hall_name}» уровень {i + 1} не содержит основной картинки.")
+                            QMessageBox.warning(self, "Ошибка", f"Для зала «{hall_name}» уровень {i+1} не содержит основной картинки.")
                             return
-                        if len(level_dict.get("color_images", [])) != 8 or any(
-                                not c for c in level_dict["color_images"]):
-                            QMessageBox.warning(self, "Ошибка",
-                                                f"Для зала «{hall_name}» уровень {i + 1} не содержит 8 цветов.")
+                        if len(level_dict.get("color_images", [])) != 8 or any(not c for c in level_dict["color_images"]):
+                            QMessageBox.warning(self, "Ошибка", f"Для зала «{hall_name}» уровень {i+1} не содержит 8 цветов.")
+                            return
+                elif hall_name == "Зал реставратора (Заплатки)":
+                    for i, level_dict in enumerate(data["level_data"]):
+                        if not level_dict.get("complete_image"):
+                            QMessageBox.warning(self, "Ошибка", f"Для зала «{hall_name}» уровень {i+1} не содержит целой картинки.")
+                            return
+                        if not level_dict.get("hole_image"):
+                            QMessageBox.warning(self, "Ошибка", f"Для зала «{hall_name}» уровень {i+1} не содержит картинки с дыркой.")
+                            return
+                        if len(level_dict.get("patches", [])) != 3 or any(not p for p in level_dict["patches"]):
+                            QMessageBox.warning(self, "Ошибка", f"Для зала «{hall_name}» уровень {i+1} не содержит 3 заплаток.")
                             return
                 else:
                     for i, images in enumerate(data["level_data"]):
                         if not images:
-                            QMessageBox.warning(self, "Ошибка",
-                                                f"Для зала «{hall_name}» уровень {i + 1} не содержит изображений.")
+                            QMessageBox.warning(self, "Ошибка", f"Для зала «{hall_name}» уровень {i+1} не содержит изображений.")
                             return
         if not any_configured:
-            QMessageBox.warning(self, "Ошибка",
-                                "Не настроен ни один зал. Добавьте изображения хотя бы для одного зала.")
+            QMessageBox.warning(self, "Ошибка", "Не настроен ни один зал. Добавьте изображения хотя бы для одного зала.")
             return
 
         halls_data = {}
@@ -811,13 +1081,19 @@ class PresetEditor(QDialog):
             if hall_name == "Зал мастера (Подбери цвета по картинке)":
                 for level_idx, level_dict in enumerate(hall_data["levels"]):
                     new_level = self.preset_manager.copy_master_images_to_preset(
-                        preset["name"], hall_name, level_idx + 1, level_dict
+                        preset["name"], hall_name, level_idx+1, level_dict
+                    )
+                    hall_data["levels"][level_idx] = new_level
+            elif hall_name == "Зал реставратора (Заплатки)":
+                for level_idx, level_dict in enumerate(hall_data["levels"]):
+                    new_level = self.preset_manager.copy_restorer_images_to_preset(
+                        preset["name"], hall_name, level_idx+1, level_dict
                     )
                     hall_data["levels"][level_idx] = new_level
             else:
                 for level_idx, img_list in enumerate(hall_data["levels"]):
                     new_paths = self.preset_manager.copy_images_to_preset(
-                        preset["name"], hall_name, level_idx + 1, img_list
+                        preset["name"], hall_name, level_idx+1, img_list
                     )
                     hall_data["levels"][level_idx] = new_paths
 
@@ -830,23 +1106,36 @@ class PresetEditor(QDialog):
         super().accept()
 
     def resizeEvent(self, event):
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(50, self._delayed_resize)
+        super().resizeEvent(event)
+
+    def _delayed_resize(self):
         for hall_name, data in self.tab_data.items():
             combo = data.get("level_combo")
             if combo and combo.count() > 0:
                 current_index = combo.currentIndex()
                 if current_index >= 0:
                     combo.setCurrentIndex(current_index)
-        super().resizeEvent(event)
 
     def showEvent(self, event):
         from PyQt5.QtCore import QTimer
-        QTimer.singleShot(50, self.update_all_previews)
+        from PyQt5.QtWidgets import QApplication
+        # Увеличенная задержка и принудительная обработка событий
+        QTimer.singleShot(500, self.update_all_previews)
+        QApplication.processEvents()
         super().showEvent(event)
 
     def update_all_previews(self):
+        from PyQt5.QtWidgets import QApplication
+        QApplication.processEvents()
         for hall_name, data in self.tab_data.items():
             combo = data.get("level_combo")
             if combo and combo.count() > 0:
                 current_index = combo.currentIndex()
                 if current_index >= 0:
+                    scroll = data.get("preview_scroll")
+                    if scroll:
+                        scroll.updateGeometry()
+                        QApplication.processEvents()
                     combo.setCurrentIndex(current_index)

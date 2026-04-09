@@ -74,12 +74,10 @@ class PresetManager:
 
     # ---------- Зал мастера (основная картинка + 8 цветов) ----------
     def copy_master_images_to_preset(self, preset_name, hall_name, level_idx, level_dict):
-        """Копирует основную картинку и цвета для уровня зала мастера."""
         level_folder = os.path.join(self.user_data_dir, preset_name, hall_name, f"level_{level_idx}")
         os.makedirs(level_folder, exist_ok=True)
         new_level = {}
 
-        # Основная картинка
         main_src = level_dict.get("main_image", "")
         if main_src and os.path.exists(main_src):
             dst = os.path.join(level_folder, "main.png")
@@ -91,7 +89,6 @@ class PresetManager:
         else:
             new_level["main_image"] = ""
 
-        # Цвета (8 штук)
         new_colors = []
         for i, src in enumerate(level_dict.get("color_images", [])):
             if src and os.path.exists(src):
@@ -105,6 +102,52 @@ class PresetManager:
                 new_colors.append("")
         new_level["color_images"] = new_colors
         new_level["correct_indices"] = level_dict.get("correct_indices", [])
+        return new_level
+
+    # ---------- Зал реставратора (целая, дырка, 3 заплатки) ----------
+    def copy_restorer_images_to_preset(self, preset_name, hall_name, level_idx, level_dict):
+        level_folder = os.path.join(self.user_data_dir, preset_name, hall_name, f"level_{level_idx}")
+        os.makedirs(level_folder, exist_ok=True)
+        new_level = {}
+
+        # Целая картинка
+        src = level_dict.get("complete_image", "")
+        if src and os.path.exists(src):
+            dst = os.path.join(level_folder, "complete.png")
+            if os.path.normpath(src) == os.path.normpath(dst):
+                new_level["complete_image"] = src
+            else:
+                shutil.copy2(src, dst)
+                new_level["complete_image"] = dst
+        else:
+            new_level["complete_image"] = ""
+
+        # Картинка с дыркой
+        src = level_dict.get("hole_image", "")
+        if src and os.path.exists(src):
+            dst = os.path.join(level_folder, "hole.png")
+            if os.path.normpath(src) == os.path.normpath(dst):
+                new_level["hole_image"] = src
+            else:
+                shutil.copy2(src, dst)
+                new_level["hole_image"] = dst
+        else:
+            new_level["hole_image"] = ""
+
+        # Заплатки (3 штуки)
+        new_patches = []
+        for i, src in enumerate(level_dict.get("patches", [])):
+            if src and os.path.exists(src):
+                dst = os.path.join(level_folder, f"patch_{i+1}.png")
+                if os.path.normpath(src) == os.path.normpath(dst):
+                    new_patches.append(src)
+                else:
+                    shutil.copy2(src, dst)
+                    new_patches.append(dst)
+            else:
+                new_patches.append("")
+        new_level["patches"] = new_patches
+        new_level["correct_patch_idx"] = level_dict.get("correct_patch_idx", 0)
         return new_level
 
     # ---------- Создание стандартного пресета ----------
@@ -128,7 +171,6 @@ class PresetManager:
             correct_answers = []
 
             if hall_name == "Зал мастера (Подбери цвета по картинке)":
-                # Особый формат: для каждого уровня – словарь
                 for lvl in range(1, levels + 1):
                     level_folder = os.path.join(hall_path, f"level_{lvl}")
                     if not os.path.exists(level_folder):
@@ -138,12 +180,30 @@ class PresetManager:
                     level_dict = {
                         "main_image": main_img,
                         "color_images": color_imgs,
-                        "correct_indices": [0, 1, 2, 3]  # пример: первые 4 цвета правильные
+                        "correct_indices": [0, 1, 2, 3]
                     }
                     level_paths.append(level_dict)
-                    correct_answers.append(0)  # не используется
+                    correct_answers.append(0)
+
+            elif hall_name == "Зал реставратора (Заплатки)":
+                for lvl in range(1, levels + 1):
+                    level_folder = os.path.join(hall_path, f"level_{lvl}")
+                    if not os.path.exists(level_folder):
+                        break
+                    complete_img = os.path.join(level_folder, "complete.png")
+                    hole_img = os.path.join(level_folder, "hole.png")
+                    patch_imgs = [os.path.join(level_folder, f"patch_{i}.png") for i in range(1, 4)]
+                    level_dict = {
+                        "complete_image": complete_img,
+                        "hole_image": hole_img,
+                        "patches": patch_imgs,
+                        "correct_patch_idx": 0
+                    }
+                    level_paths.append(level_dict)
+                    correct_answers.append(0)
+
             else:
-                # Обычные залы: список путей к изображениям
+                # Обычные залы (внимание, знакомство, хранитель)
                 for lvl in range(1, levels + 1):
                     level_folder = os.path.join(hall_path, f"level_{lvl}")
                     if not os.path.exists(level_folder):
@@ -180,6 +240,10 @@ class PresetManager:
             if hall_name == "Зал мастера (Подбери цвета по картинке)":
                 for level_idx, level_dict in enumerate(hall_data["levels"]):
                     new_level = self.copy_master_images_to_preset(default_preset_name, hall_name, level_idx+1, level_dict)
+                    hall_data["levels"][level_idx] = new_level
+            elif hall_name == "Зал реставратора (Заплатки)":
+                for level_idx, level_dict in enumerate(hall_data["levels"]):
+                    new_level = self.copy_restorer_images_to_preset(default_preset_name, hall_name, level_idx+1, level_dict)
                     hall_data["levels"][level_idx] = new_level
             else:
                 for level_idx, img_list in enumerate(hall_data["levels"]):
